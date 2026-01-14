@@ -14,105 +14,91 @@ body{
 h1{text-align:center;margin-bottom:30px}
 .card{
     background:#1e2f38;
-    padding:25px;border-radius:14px;
-    box-shadow:0 20px 40px rgba(0,0,0,.4)
+    padding:25px;border-radius:14px
 }
 label{font-weight:600;margin-top:15px;display:block}
-input[type=file],textarea{
+input,textarea{
     width:100%;padding:12px;border-radius:8px;border:none;margin-top:8px
 }
-textarea{height:130px;resize:none}
+textarea{height:130px}
 button{
     width:100%;margin-top:20px;padding:14px;
     background:#00c6ff;border:none;border-radius:10px;
     font-size:16px;font-weight:700;cursor:pointer
 }
-button:hover{background:#00e5ff}
 .result{
     margin-top:40px;background:#17242b;
     padding:25px;border-radius:14px
 }
 .score{
-    font-size:36px;font-weight:800;color:#00ffd5
+    font-size:32px;font-weight:800;color:#00ffd5
 }
-.tags span{
+.tag{
     display:inline-block;margin:6px;padding:8px 14px;
     border-radius:20px;font-size:14px
 }
 .green{background:#2ecc71;color:#000}
 .red{background:#ff5f5f;color:#000}
-.blue{background:#4dabf7;color:#000}
-.error{color:#ff5f5f;margin-bottom:10px}
 </style>
 
 <script>
-function scrollResult(){
-    setTimeout(()=>{
-        document.getElementById("results")?.scrollIntoView({behavior:"smooth"})
-    },200)
+window.onload = function(){
+    const res = document.getElementById("result");
+    if(res){ res.scrollIntoView({behavior:"smooth"}); }
 }
 </script>
 </head>
 
 <body>
 <div class="container">
+
 <h1>🚀 Smart Resume Analyzer</h1>
 
 <div class="card">
-<form method="POST" enctype="multipart/form-data" onsubmit="scrollResult()">
-{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="POST" enctype="multipart/form-data">
 
 <label>Upload Resume (PDF)</label>
-<input type="file" name="resume" accept=".pdf" required>
+<input type="file" name="resume" required>
 
 <label>Paste Job Description</label>
-<textarea name="job_desc" placeholder="Paste job description here..." required></textarea>
+<textarea 
+    name="job_desc"
+    placeholder="Enter Your Job Description...."
+    required>
+</textarea>
 
 <button type="submit">Analyze Resume</button>
 </form>
 </div>
 
 {% if match is not none %}
-<div class="result" id="results">
+<div class="result" id="result">
+
 <div class="score">Match Score: {{ match }}%</div>
+<div class="score">ATS Score: {{ ats }}/100</div>
 
 <h3>Matched Skills</h3>
-<div class="tags">
 {% for s in matched %}
-<span class="green">{{ s }}</span>
+<span class="tag green">{{ s }}</span>
 {% endfor %}
-</div>
 
 <h3>Missing Skills</h3>
-<div class="tags">
 {% for s in missing %}
-<span class="red">{{ s }}</span>
+<span class="tag red">{{ s }}</span>
 {% endfor %}
-</div>
 
-<!-- ✅ NEW SECTION ADDED -->
-{% if missing %}
-<h3>📈 How to Improve Your Match</h3>
-<p>Consider adding these skills to your resume to improve your match score:</p>
-<div class="tags">
-{% for s in missing %}
-<span class="blue">{{ s }}</span>
+<h3>🤖 AI Suggestions</h3>
+<ul>
+{% for s in ai_suggestions %}
+<li style="margin-bottom:10px;">{{ s }}</li>
 {% endfor %}
-</div>
-{% endif %}
+</ul>
 
 </div>
 {% endif %}
 
 </div>
-
-{% if match is not none %}
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    document.getElementById("results")?.scrollIntoView({ behavior: "smooth" });
-});
-</script>
-{% endif %}
-
 </body>
 </html>
+
+
