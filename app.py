@@ -4,7 +4,9 @@ import re
 
 app = Flask(__name__)
 
-# 🔒 MASTER SKILLS (ONLY THESE AFFECT MATCH %)
+# =========================
+# MASTER SKILLS
+# =========================
 MASTER_SKILLS = {
     "python","java","c","c++","c#","javascript","typescript",
     "html","css","react","angular","vue","js","node","express",
@@ -23,6 +25,25 @@ MASTER_SKILLS = {
     "ci/cd","system design","design patterns","agile","scrum"
 }
 
+# =========================
+# SKILL CATEGORIES (HYBRID AI)
+# =========================
+SKILL_CATEGORIES = {
+    "Backend": {"python","java","flask","django","fastapi","spring","spring boot","node","express"},
+    "Frontend": {"html","css","javascript","react","angular","vue"},
+    "Data": {"sql","mysql","postgresql","mongodb","pandas","numpy","excel","power bi","tableau"},
+    "Cloud & DevOps": {"aws","azure","gcp","docker","kubernetes","ci/cd"},
+    "AI / ML": {"machine learning","deep learning","nlp","tensorflow","pytorch","scikit-learn"}
+}
+
+ACTION_WORDS = {
+    "developed","built","designed","implemented",
+    "optimized","deployed","created","managed"
+}
+
+# =========================
+# HELPERS
+# =========================
 def clean(text):
     text = text.lower()
     text = re.sub(r"[^a-z0-9\s]", " ", text)
@@ -31,60 +52,122 @@ def clean(text):
 def extract_pdf(file):
     text = ""
     with pdfplumber.open(file) as pdf:
-        for p in pdf.pages:
-            if p.extract_text():
-                text += p.extract_text()
+        for page in pdf.pages:
+            if page.extract_text():
+                text += page.extract_text()
     return clean(text)
 
 def find_skills(text):
     found = set()
     for skill in MASTER_SKILLS:
-        if re.search(r"\b" + re.escape(skill) + r"\b", text):
+        if re.search(rf"\b{re.escape(skill)}\b", text):
             found.add(skill)
     return found
 
-@app.route("/", methods=["GET","POST"])
+def calculate_ats(resume_text, jd_text, match_percent):
+    score = 0
+
+    # Skill match (50)
+    score += int(match_percent * 0.5)
+
+    # Keyword overlap (20)
+    jd_words = set(jd_text.split())
+    resume_words = set(resume_text.split())
+    if jd_words:
+        score += min(20, int(len(jd_words & resume_words) / len(jd_words) * 20))
+
+    # Resume length (10)
+    wc = len(resume_text.split())
+    if 300 <= wc <= 900:
+        score += 10
+    elif 200 <= wc < 300:
+        score += 5
+
+    # Action words (20)
+    action_hits = sum(1 for w in ACTION_WORDS if w in resume_text)
+    score += min(20, action_hits * 4)
+
+    return min(score, 100)
+
+# =========================
+# HYBRID AI SUGGESTIONS (0 COST)
+# =========================
+def generate_ai_suggestions(missing, ats, jd_skills):
+    suggestions = []
+
+    # ATS-based reasoning
+    if ats < 40:
+        suggestions.append(
+            "Your resume has low alignment with the job description. Focus on adding core technical skills and relevant keywords."
+        )
+    elif ats < 70:
+        suggestions.append(
+            "Your resume partially matches the job role. Strengthening weak areas and adding better project descriptions can improve it."
+        )
+    else:
+        suggestions.append(
+            "Your resume aligns well with the job role. Minor refinements can further strengthen it."
+        )
+
+    # Category-level intelligence
+    for category, skills in SKILL_CATEGORIES.items():
+        required = skills & jd_skills
+        missing_cat = required & set(missing)
+        if required and missing_cat:
+            suggestions.append(
+                f"The job emphasizes **{category} skills**. Consider improving: {', '.join(list(missing_cat)[:3])}."
+            )
+
+    # Generic smart suggestions
+    if missing:
+        suggestions.append(
+            "Build at least one real-world project showcasing the missing skills."
+        )
+
+    suggestions.append(
+        "Use strong action verbs and quantify results (e.g., 'Improved API performance by 30%')."
+    )
+
+    return suggestions
+
+# =========================
+# ROUTE
+# =========================
+@app.route("/", methods=["GET", "POST"])
 def index():
     match = None
-    missing = []
+    ats = None
     matched = []
-    error = None
+    missing = []
+    ai_suggestions = []
 
     if request.method == "POST":
         resume = request.files.get("resume")
-        jd = request.form.get("job_desc","").strip()
+        jd = request.form.get("job_desc", "").strip()
 
-        if not resume or resume.filename == "":
-            error = "Upload resume PDF"
-            return render_template("index.html", error=error)
+        if resume and jd:
+            resume_text = extract_pdf(resume)
+            jd_text = clean(jd)
 
-        if not jd:
-            error = "Paste job description"
-            return render_template("index.html", error=error)
+            jd_skills = find_skills(jd_text)
+            resume_skills = find_skills(resume_text)
 
-        resume_text = extract_pdf(resume)
-        jd_text = clean(jd)
+            matched = sorted(jd_skills & resume_skills)
+            missing = sorted(jd_skills - resume_skills)
 
-        jd_skills = find_skills(jd_text)
-        resume_skills = find_skills(resume_text)
+            match = int(len(matched) / len(jd_skills) * 100) if jd_skills else 0
+            ats = calculate_ats(resume_text, jd_text, match)
 
-        matched = sorted(jd_skills & resume_skills)
-        missing = sorted(jd_skills - resume_skills)
-
-        match = int((len(matched) / len(jd_skills)) * 100) if jd_skills else 0
+            ai_suggestions = generate_ai_suggestions(missing, ats, jd_skills)
 
     return render_template(
         "index.html",
         match=match,
+        ats=ats,
         matched=matched,
         missing=missing,
-        error=error
+        ai_suggestions=ai_suggestions
     )
 
-import os
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-
+    app.run(debug=True)
